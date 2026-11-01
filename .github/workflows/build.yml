@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +19,11 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      - name: Chap nhan license va cai Android SDK 34
+        run: |
+          SDKM=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          yes | $SDKM --licenses > /dev/null || true
+          $SDKM "platforms;android-34" "build-tools;34.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -34,10 +38,10 @@ jobs:
           name: GameWatchdog-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Publish APK to Releases (tải thẳng trên điện thoại)
+      - name: Publish APK to Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Bản build mới nhất
+          name: Ban build moi nhat
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk
