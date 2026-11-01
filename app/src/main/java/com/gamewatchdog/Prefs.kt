@@ -30,7 +30,9 @@ data class AppConfig(
     val label: String,
     val startupSec: Int = 25,
     val macro: String = "",
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val repeat: Int = 1,          // số lần chạy macro
+    val repeatGapSec: Int = 0     // nghỉ giữa các lần (giây)
 )
 
 object Prefs {
@@ -115,6 +117,8 @@ object Prefs {
             o.put("startup", a.startupSec)
             o.put("macro", a.macro)
             o.put("on", a.enabled)
+            o.put("repeat", a.repeat)
+            o.put("gap", a.repeatGapSec)
             arr.put(o)
         }
         return arr.toString()
@@ -133,7 +137,9 @@ object Prefs {
                         o.optString("label", pkg),
                         o.optInt("startup", 25),
                         o.optString("macro", ""),
-                        o.optBoolean("on", true)
+                        o.optBoolean("on", true),
+                        o.optInt("repeat", 1).coerceAtLeast(1),
+                        o.optInt("gap", 0).coerceAtLeast(0)
                     )
                 )
             }

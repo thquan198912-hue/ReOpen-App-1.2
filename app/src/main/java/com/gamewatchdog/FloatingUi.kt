@@ -135,8 +135,11 @@ class FloatingUi(private val svc: WatchdogService) {
                 toast("Đang ghi, bấm ⏹ trước")
             } else if (t == null) {
                 toast("Chưa có app nào")
+            } else if (svc.isBusy(t.pkg)) {
+                svc.stopMacro(t.pkg)
+                toast("Đã dừng macro ${t.label}")
             } else if (!svc.playMacro(t.pkg)) {
-                toast("App này đang bận, thử lại sau")
+                toast("Không chạy được macro")
             }
         }
         r.addView(handle)
@@ -195,6 +198,7 @@ class FloatingUi(private val svc: WatchdogService) {
         recTv?.text = if (recording) "⏹" else "⏺"
         val t = if (recording) Prefs.getApp(svc, recPkg) else targetApp()
         chipTv?.text = t?.label?.take(6) ?: "—"
+        playTv?.text = if (t != null && svc.isBusy(t.pkg)) "🛑" else "▶"
     }
 
     private fun toggleCollapse() {

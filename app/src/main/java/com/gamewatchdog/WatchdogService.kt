@@ -17,7 +17,8 @@ import android.view.inputmethod.InputMethodManager
 /**
  * Giám sát nhiều app cùng lúc (kể cả khi chia đôi màn hình / cửa sổ nổi).
  * App nào không còn hiện trên màn hình quá N giây (thoát hoặc văng) thì được mở lại,
- * chờ tải, rồi chạy macro riêng của app đó. Các macro chạy lần lượt, không chồng nhau.
+ * chờ tải, rồi chạy macro riêng của app đó (lặp theo số lần đã cài).
+ * Các macro chạy lần lượt, không chồng nhau.
  */
 class WatchdogService : AccessibilityService() {
 
@@ -26,6 +27,8 @@ class WatchdogService : AccessibilityService() {
         var instance: WatchdogService? = null
 
         private val IGNORED = setOf("com.android.systemui")
+        private const val LOOP_WINDOW_MS = 5 * 60_000L // khoảng thời gian đếm số lần mở lại
+        private const val LOOP_MAX = 3                  // quá số lần này thì tự tắt giám sát app
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -33,6 +36,7 @@ class WatchdogService : AccessibilityService() {
     private var topPkg = ""                              // app có cửa sổ mới nhất (theo sự kiện)
     private val awaySince = HashMap<String, Long>()      // app → thời điểm bắt đầu vắng mặt
     private val cooldownUntil = HashMap<String, Long>()  // app → không mở lại trước thời điểm này
+    private val recoverTimes = HashMap<String, ArrayList<Long>>() // app → các lần tự mở lại gần đây
     private val busyApps = HashSet<String>()             // app đang mở lại / chờ tải / chạy macro
     private val tokens = HashMap<String, Int>()          // app → mã lượt chạy (để huỷ)
     private var tokenCounter = 0
@@ -95,6 +99,7 @@ class WatchdogService : AccessibilityService() {
         floating = null
         awaySince.clear()
         cooldownUntil.clear()
+        recoverTimes.clear()
         busyApps.clear()
         tokens.clear()
         macroQueue.clear()
@@ -122,11 +127,13 @@ class WatchdogService : AccessibilityService() {
         floating?.refresh()
     }
 
+    fun isBusy(pkg: String): Boolean = pkg in busyApps
+
     /** "Thử ngay": mở lại app rồi chạy macro của app đó. Trả về false nếu app đang bận. */
     fun runNow(pkg: String): Boolean {
         if (pkg in busyApps) return false
         val app = Prefs.getApp(this, pkg) ?: return false
-        recover(app)
+        recover(app, false, "thủ công")
         return true
     }
 
@@ -139,6 +146,12 @@ class WatchdogService : AccessibilityService() {
         busyApps.add(pkg)
         enqueueMacro(pkg, token)
         return true
+    }
+
+    /** Dừng macro đang chạy / đang chờ của app. */
+    fun stopMacro(pkg: String) {
+        tokens.remove(pkg)
+        if (busyApps.remove(pkg)) Prefs.log(this, "${appLabel(pkg)}: đã dừng macro")
     }
 
     // ---------------- Giám sát ----------------
@@ -189,7 +202,9 @@ class WatchdogService : AccessibilityService() {
                 awaySince.remove(a.pkg)
                 continue
             }
-            val present = if (reliable) a.pkg in vis else a.pkg == topPkg
+            // Coi là còn chạy nếu thấy trong danh sách cửa sổ HOẶC là app vừa hiện lên gần nhất.
+            // Game (Unity...) hay có cửa sổ không đọc được tên, nên không được chỉ dựa vào danh sách cửa sổ.
+            val present = a.pkg == topPkg || (reliable && a.pkg in vis)
             if (present) {
                 awaySince.remove(a.pkg)
                 continue
@@ -197,16 +212,35 @@ class WatchdogService : AccessibilityService() {
             val since = awaySince.getOrPut(a.pkg) { now }
             if (now - since >= grace && now >= (cooldownUntil[a.pkg] ?: 0L)) {
                 awaySince.remove(a.pkg)
-                recover(a)
+                val seen = vis.filter { it !in IGNORED && it != packageName }.joinToString()
+                recover(a, true, "cửa sổ thấy: [$seen], trên cùng: $topPkg")
             }
         }
     }
 
-    private fun recover(a: AppConfig) {
+    private fun recover(a: AppConfig, auto: Boolean, reason: String) {
+        if (auto) {
+            // Chặn vòng lặp: mở lại quá nhiều lần liên tiếp nghĩa là không nhận ra app đang chạy
+            val now = System.currentTimeMillis()
+            val list = recoverTimes.getOrPut(a.pkg) { ArrayList() }
+            list.removeAll { now - it > LOOP_WINDOW_MS }
+            if (list.size >= LOOP_MAX) {
+                Prefs.log(
+                    this,
+                    "${a.label}: đã mở lại ${list.size} lần trong 5 phút → tự tắt giám sát app này " +
+                        "(có thể không nhận ra app đang chạy). $reason"
+                )
+                Prefs.updateApp(this, a.pkg) { it.copy(enabled = false) }
+                list.clear()
+                return
+            }
+            list.add(now)
+        }
+
         val token = ++tokenCounter
         tokens[a.pkg] = token
         busyApps.add(a.pkg)
-        Prefs.log(this, "${a.label}: không còn trên màn hình → mở lại")
+        Prefs.log(this, "${a.label}: mở lại ($reason)")
 
         if (!launchApp(a.pkg)) {
             Prefs.log(this, "${a.label}: không mở được (đã gỡ cài đặt?). Tắt giám sát app này.")
@@ -259,24 +293,35 @@ class WatchdogService : AccessibilityService() {
             finishRun(pkg, "chưa có macro (hãy ghi bằng nút ⏺)")
             return
         }
-        Prefs.log(this, "${appLabel(pkg)}: bắt đầu macro ${steps.size} bước")
-        doStep(pkg, steps, 0, token)
+        val rounds = (app?.repeat ?: 1).coerceIn(1, 9999)
+        val gapMs = (app?.repeatGapSec ?: 0).coerceAtLeast(0) * 1000L
+        Prefs.log(this, "${appLabel(pkg)}: bắt đầu macro ${steps.size} bước × $rounds lần")
+        doStep(pkg, steps, 0, token, 1, rounds, gapMs)
     }
 
-    private fun doStep(pkg: String, steps: List<MacroStep>, index: Int, token: Int) {
-        if (tokens[pkg] != token) {
+    private fun doStep(
+        pkg: String, steps: List<MacroStep>, index: Int, token: Int,
+        round: Int, rounds: Int, gapMs: Long
+    ) {
+        if (tokens[pkg] != token) { // đã bị dừng
             macroRunning = false
             pump()
             return
         }
         if (index >= steps.size) {
-            finishRun(pkg, "xong macro")
+            if (round < rounds) {
+                handler.postDelayed({
+                    doStep(pkg, steps, 0, token, round + 1, rounds, gapMs)
+                }, gapMs)
+            } else {
+                finishRun(pkg, "xong macro ($rounds lần)")
+            }
             return
         }
         val s = steps[index]
         handler.postDelayed({
             if (tokens[pkg] == token) {
-                dispatchStep(s) { doStep(pkg, steps, index + 1, token) }
+                dispatchStep(s) { doStep(pkg, steps, index + 1, token, round, rounds, gapMs) }
             } else {
                 macroRunning = false
                 pump()
@@ -288,6 +333,8 @@ class WatchdogService : AccessibilityService() {
         Prefs.log(this, "${appLabel(pkg)}: $msg")
         busyApps.remove(pkg)
         tokens.remove(pkg)
+        // Sau khi macro xong, cho app thêm thời gian ổn định trước khi coi là vắng mặt
+        cooldownUntil[pkg] = maxOf(cooldownUntil[pkg] ?: 0L, System.currentTimeMillis() + 20000L)
         macroRunning = false
         pump()
     }

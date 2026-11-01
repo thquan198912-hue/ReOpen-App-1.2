@@ -205,7 +205,7 @@ class MainActivity : Activity() {
 
             card.addView(label(a.label, 16f, true))
             val steps = Prefs.parseMacro(a.macro).size
-            card.addView(label("${a.pkg}\nchờ tải ${a.startupSec}s  •  macro $steps bước", 12f, false))
+            card.addView(label("${a.pkg}\nchờ tải ${a.startupSec}s  •  macro $steps bước  •  chạy ${a.repeat} lần", 12f, false))
 
             val cb = CheckBox(this)
             cb.text = "Giám sát app này"
@@ -240,6 +240,20 @@ class MainActivity : Activity() {
         etS.setText(app.startupSec.toString())
         box.addView(etS)
 
+        box.addView(label("Số lần chạy macro (1–9999)", 13f, false))
+        val etR = EditText(this)
+        etR.inputType = InputType.TYPE_CLASS_NUMBER
+        etR.setSingleLine()
+        etR.setText(app.repeat.toString())
+        box.addView(etR)
+
+        box.addView(label("Nghỉ giữa các lần chạy (giây)", 13f, false))
+        val etG = EditText(this)
+        etG.inputType = InputType.TYPE_CLASS_NUMBER
+        etG.setSingleLine()
+        etG.setText(app.repeatGapSec.toString())
+        box.addView(etG)
+
         box.addView(label("Macro riêng của app này", 13f, false))
         val etM = EditText(this)
         etM.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -268,7 +282,11 @@ class MainActivity : Activity() {
             .setPositiveButton("Lưu") { _, _ ->
                 val sec = (etS.text.toString().toIntOrNull() ?: 25).coerceIn(0, 600)
                 val text = etM.text.toString()
-                Prefs.updateApp(this, pkg) { it.copy(startupSec = sec, macro = text) }
+                val rep = (etR.text.toString().toIntOrNull() ?: 1).coerceIn(1, 9999)
+                val gap = (etG.text.toString().toIntOrNull() ?: 0).coerceIn(0, 3600)
+                Prefs.updateApp(this, pkg) {
+                    it.copy(startupSec = sec, macro = text, repeat = rep, repeatGapSec = gap)
+                }
                 renderApps()
             }
             .setNegativeButton("Huỷ", null)
