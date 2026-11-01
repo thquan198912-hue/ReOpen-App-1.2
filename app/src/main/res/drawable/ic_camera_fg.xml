@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateY="-3">
+        <!-- tấm gắn tường -->
+        <path
+            android:fillColor="#B0BEC5"
+            android:pathData="M21.5,58 h3 a1.5,1.5 0 0 1 1.5,1.5 v25 a1.5,1.5 0 0 1 -1.5,1.5 h-3 a1.5,1.5 0 0 1 -1.5,-1.5 v-25 a1.5,1.5 0 0 1 1.5,-1.5 z" />
+        <!-- tay đỡ -->
+        <path
+            android:fillColor="#CFD8DC"
+            android:pathData="M26,76 h20 v5 h-20 z" />
+        <path
+            android:fillColor="#CFD8DC"
+            android:pathData="M40,56 h7 v22 h-7 z" />
+
+        <!-- thân camera nghiêng xuống -->
+        <group
+            android:pivotX="50"
+            android:pivotY="50"
+            android:rotation="14">
+            <!-- mái che nắng -->
+            <path
+                android:fillColor="#CFD8DC"
+                android:pathData="M24,33 h56 a2,2 0 0 1 2,2 v1 a2,2 0 0 1 -2,2 h-56 a2,2 0 0 1 -2,-2 v-1 a2,2 0 0 1 2,-2 z" />
+            <!-- thân -->
+            <path
+                android:fillColor="#FFFFFF"
+                android:pathData="M29,38 h46 a5,5 0 0 1 5,5 v14 a5,5 0 0 1 -5,5 h-46 a5,5 0 0 1 -5,-5 v-14 a5,5 0 0 1 5,-5 z" />
+            <!-- đầu ống kính -->
+            <path
+                android:fillColor="#90A4AE"
+                android:pathData="M80,39 h5 a2,2 0 0 1 2,2 v18 a2,2 0 0 1 -2,2 h-5 z" />
+            <!-- kính -->
+            <path
+                android:fillColor="#4FC3F7"
+                android:pathData="M84,50 a3,9 0 1 0 6,0 a3,9 0 1 0 -6,0 z" />
+            <!-- đèn đỏ -->
+            <path
+                android:fillColor="#FF5252"
+                android:pathData="M29.6,45 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0 z" />
+        </group>
+    </group>
+</vector>

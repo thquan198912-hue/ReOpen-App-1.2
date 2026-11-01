@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Game Watchdog</string>
+    <string name="service_desc">Theo dõi các app bạn chọn (kể cả nhiều app cùng lúc trên màn hình). Khi app bị thoát hoặc văng, tự mở lại và chạy macro chạm/vuốt riêng của app đó. Dịch vụ chỉ đọc tên app đang hiển thị, không đọc nội dung.</string>
+</resources>
